@@ -16,10 +16,10 @@
             PSComputerName = $computer
         }
         $configvdf = ConvertFrom-SteamFile -Path "$SteamPath\config\config.vdf" @params
-        $otherlibrarylocations = $configvdf | Get-Member | Where Name -Like "BaseInstallFolder*"
+        $otherlibrarylocations = $configvdf.InstallConfigStore.Software.Valve.Steam | Get-Member | Where Name -Like "BaseInstallFolder*"
         foreach ($otherlibrarylocation in $otherlibrarylocations) {
             $Name = $otherlibrarylocation.Name
-            $value = $configvdf.$Name
+            $value = $configvdf.InstallConfigStore.Software.Valve.Steam.$Name
             $folder = $value.Replace("\\","\")
             [PSCustomObject]@{
                 Name = $Name
@@ -46,39 +46,38 @@ function Get-SteamGame {
 
 
         $steampath = (Get-SteamPath -ComputerName $computer).Path
-        $manifests = foreach ($path in $steampath) {
+        
 #            if (!$Name) {$name = ""}
 #            if (!$AppID) {$AppID = ""}            
-            $paramsandpath =  $params + @{ArgumentList=$Path,$Name,$AppID}
-            Invoke-Command {
-                param(
-                    $path,
-                    $Name,
-                    $AppID
-                )
-                $dir = Get-ChildItem "$path\steamapps\AppManifest*.acf"
-                if ($Name) {
-                    Write-Verbose "Name is $name"
-                    $select = $dir | select-string $Name
-                    $pathtemp = $select.Path | select -Unique
-                    $dir = foreach ($file in $pathtemp) {$dir | where FullName -eq $file}
-                    if ($dir -eq $null) {Write-Error "No games found in local Steam libraries that match Name $name."}
-                }
-                if ($AppID) {
-                    Write-Verbose "AppID is $AppID"
-                    $dir = $dir | where Name -like "*_$($AppID).acf"
-                    if ($dir -eq $null) {Write-Error "No games found in local Steam libraries that match AppID $AppID."}
-                }
-                $dir
-            } @paramsandpath
-        }
+        $paramsandpath =  $params + @{ArgumentList=$SteamPath,$Name,$AppID}
+        $manifests = Invoke-Command {
+            param(
+                [string[]]$Steampath,
+                $Name,
+                $AppID
+            )
+            $dir = foreach ($path in $Steampath) {Get-ChildItem "$path\steamapps\AppManifest*.acf"}
+            if ($Name) {
+                Write-Verbose "Name is $name"
+                $select = $dir | select-string $Name
+                $pathtemp = $select.Path | select -Unique
+                $dir = foreach ($file in $pathtemp) {$dir | where FullName -eq $file}
+                if ($dir -eq $null) {Write-Error "No games found in local Steam libraries that match Name $name."}
+            }
+            if ($AppID) {
+                Write-Verbose "AppID is $AppID"
+                $dir = $dir | where Name -like "*_$($AppID).acf"
+                if ($dir -eq $null) {Write-Error "No games found in local Steam libraries that match AppID $AppID."}
+            }
+            $dir
+        } @paramsandpath
 
         $convertedall = ConvertFrom-SteamFile -Path $manifests.FullName @params
         $objects = foreach ($converted in $convertedall) {
             $converted = $converted.AppState
             
-            [string]$Name = $converted.Name
-            if ($Name -eq "AppState") {$name = $converted.UserConfig.Name}
+            [string]$ConvertedName = $converted.Name
+            if ($ConvertedName -eq "AppState") {$ConvertedName = $converted.UserConfig.Name}
             $manifest = $manifests | where Name -Like "*_$($converted.AppID).acf"         
             
             $AppInstallDir = $converted.UserConfig.AppInstallDir
@@ -95,7 +94,7 @@ function Get-SteamGame {
             [double]$SizeOnDiskMB = "{0:N2}" -f ($SizeOnDiskBytes/1MB)
 
             $object = [PSCustomObject]@{
-                Name = $Name
+                Name = $ConvertedName
                 AppID = $Converted.AppID
                 LastUpdated = $LastUpdatedDateTime
                 SizeOnDisk = $SizeOnDiskMB
@@ -104,14 +103,14 @@ function Get-SteamGame {
             }
             $object
         }
-        
+
         switch ($PSCmdlet.ParameterSetName) {
             "All" {$objects}
-            "Name" {$objects | where Name -match $Name}
+            "Name" {$objects | where Name -like "*$Name*"}
             "AppID" {$objects | where AppID -eq $AppID}
         }
-    }
     if ($session) {$session | Remove-PSSession}
+    }
 }
 
 function ConvertFrom-SteamFile {
