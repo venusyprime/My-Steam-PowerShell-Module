@@ -245,10 +245,10 @@ function Get-SteamWishlist {
         if (($html | Select-String discount) -ne $null) {
             $discount_percentage = ($html | select-string discount_pct).Line.Split("-<")[2]
             $discount_original_price_withcurrency = ($html | select-string discount_original_price).Line.Split("><")[2]
-            if ($discount_original_price_withcurrency -match "(\d)+[\d.,](\d)+") {$discount_original_price = $Matches[0]}
+            if ($discount_original_price_withcurrency -match "(\d)+[\d.,](\d)+") {[decimal]$discount_original_price = $Matches[0]}
             else {$discount_original_price = $discount_original_price_withcurrency}
             $pricewithcurrency = ($html | select-string discount_final_price).Line.Split("><")[2]
-            if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {$price = $Matches[0]}
+            if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {[decimal]$price = $Matches[0]}
             else {$price = $pricewithcurrency}
 
         }
@@ -257,7 +257,7 @@ function Get-SteamWishlist {
             $discount_original_price = $null
             try {
                 $pricewithcurrency = ($html | select-string "class=price").Line.Split("><")[2]
-                if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {$price = $Matches[0]}
+                if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {[decimal]$price = $Matches[0]}
                 else {$price = $pricewithcurrency}
             }
             catch {$price = $null}
