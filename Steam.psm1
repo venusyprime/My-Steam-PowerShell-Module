@@ -244,17 +244,27 @@ function Get-SteamWishlist {
         $rank = ($html | Select-String wishlist_rank_ro).Line.Split("><")[2]
         if (($html | Select-String discount) -ne $null) {
             $discount_percentage = ($html | select-string discount_pct).Line.Split("-<")[2]
-            $discount_original_price = ($html | select-string discount_original_price).Line.Split("><")[2]
-            $price = ($html | select-string discount_final_price).Line.Split("><")[2]
+            $discount_original_price_withcurrency = ($html | select-string discount_original_price).Line.Split("><")[2]
+            if ($discount_original_price_withcurrency -match "(\d)+[\d.,](\d)+") {$discount_original_price = $Matches[0]}
+            else {$discount_original_price = $discount_original_price_withcurrency}
+            $pricewithcurrency = ($html | select-string discount_final_price).Line.Split("><")[2]
+            if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {$price = $Matches[0]}
+            else {$price = $pricewithcurrency}
+
         }
         else {
             $discount_percentage = $null
             $discount_original_price = $null
-            $price = ($html | select-string "class=price").Line.Split("><")[2]
+            try {
+                $pricewithcurrency = ($html | select-string "class=price").Line.Split("><")[2]
+                if ($pricewithcurrency -match "(\d)+[\d.,](\d)+") {$price = $Matches[0]}
+                else {$price = $pricewithcurrency}
+            }
+            catch {$price = $null}
         }
 
         $dateaddedstring = ($html | Select-String wishlist_added_on).Line.Split("><")[2].TrimStart("Added on ")
-        $dateadded = Get-Date $dateaddedstring -Format D
+        $dateadded = Get-Date $dateaddedstring -Format d
 
         $object = [PSCustomObject]@{
             Name = $Name
