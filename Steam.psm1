@@ -226,3 +226,46 @@ $($content3 | Out-String)
         }
     } 
 }
+function Get-SteamWishlist {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SteamCommunityID
+    )
+    $wishlist = Invoke-WebRequest http://steamcommunity.com/id/$SteamCommunityID/wishlist
+
+    $wishlistitems = $wishlist.AllElements | where ID -like "game_*"
+
+    foreach ($wishlistitem in $wishlistitems) {
+        $appid = $wishlistitem.ID.Split("_")[1]
+
+        $html = $wishlistitem.innerHTML.Split("`n")
+
+        $Name = ($html | Select-String "h4 class").Line.Split("><")[2]
+        $rank = ($html | Select-String wishlist_rank_ro).Line.Split("><")[2]
+        if (($html | Select-String discount) -ne $null) {
+            $discount_percentage = ($html | select-string discount_pct).Line.Split("-<")[2]
+            $discount_original_price = ($html | select-string discount_original_price).Line.Split("><")[2]
+            $price = ($html | select-string discount_final_price).Line.Split("><")[2]
+        }
+        else {
+            $discount_percentage = $null
+            $discount_original_price = $null
+            $price = ($html | select-string "class=price").Line.Split("><")[2]
+        }
+
+        $dateaddedstring = ($html | Select-String wishlist_added_on).Line.Split("><")[2].TrimStart("Added on ")
+        $dateadded = Get-Date $dateaddedstring -Format D
+
+        $object = [PSCustomObject]@{
+            Name = $Name
+            AppID = $appid
+            WishlistRank = $rank
+            DateAdded = $dateadded
+            Price = $price
+            DiscountPercentage = $discount_percentage
+            DiscountOriginalPrice = $discount_original_price
+
+        }
+        Write-Output $object
+    }
+}
